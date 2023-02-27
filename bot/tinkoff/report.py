@@ -15,6 +15,7 @@ def get_portfolio_report(acc_name: str):
 		for account in accounts.accounts:
 			if (account.name == acc_name):
 				account_id = account.id
+				break
 
 		response: PortfolioResponse = client.operations.get_portfolio(account_id=account_id)
 

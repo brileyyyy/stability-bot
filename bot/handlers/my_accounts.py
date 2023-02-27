@@ -1,9 +1,11 @@
 from aiogram import Dispatcher, types
 
 from bot.tinkoff.api import get_accounts
+from bot.tinkoff.api import cancel_orders
 from bot.tinkoff.balance import get_balance
 from bot.tinkoff.yield_ import get_operations_yield
 from bot.tinkoff.report import get_portfolio_report
+from bot.tinkoff.history import get_operations_history
 from bot.tinkoff.utils import is_margin_trading
 
 from bot.keyboards.inline.accounts import accounts_buttons
@@ -74,20 +76,28 @@ async def account_interaction_report(call: types.CallbackQuery, callback_data: d
 
     await call.message.edit_text(f"Report on Account: {acc_name}\n\n{ans}",
                                  reply_markup=balance_buttons(acc_name))
+    
 
+async def account_interaction_history(call: types.CallbackQuery, callback_data: dict):
+    acc_name = callback_data.get("acc_name")
+    ans = get_operations_history(acc_name)
 
-# def cancel_orders():
-#     with Client(TOKEN) as client:
-#         response: GetAccountsResponse = get_accounts()
-#         account, *_ = response.accounts
-#         account_id = account.id
-        # logger.info("Orders: %s", client.orders.get_orders(account_id=account_id))
-        # client.cancel_all_orders(account_id=account_id)
-        # logger.info("Orders: %s", client.orders.get_orders(account_id=account_id))
+    await call.message.edit_text(f"History on Account: {acc_name}\n\n{ans}",
+                                 reply_markup=balance_buttons(acc_name))
+
 
 async def account_interaction_cancel_orders(call: types.CallbackQuery, callback_data: dict):
+    acc_name = callback_data.get("acc_name")
+
     await call.message.edit_text(f"Are you sure you want to cancel all orders?",
-                            reply_markup=cancel_orders_buttons(callback_data))
+                            reply_markup=cancel_orders_buttons(acc_name))
+    
+async def account_interaction_cancel_orders_confirm(call: types.CallbackQuery, callback_data: dict):
+    acc_name = callback_data.get("acc_name")
+    cancel_orders(acc_name)
+
+    await call.answer("All orders have been cancelled.", show_alert=True)
+
 
 
 async def account_interaction_back_button(call: types.CallbackQuery):
@@ -110,7 +120,9 @@ def register_accounts(dp: Dispatcher):
     dp.register_callback_query_handler(account_interaction_yield_period, acc_inter_cb_data.filter(id="yield"))
     dp.register_callback_query_handler(account_interaction_yield, acc_inter_yield_cb_data.filter(id="period"))
     dp.register_callback_query_handler(account_interaction_report, acc_inter_cb_data.filter(id="report"))
+    dp.register_callback_query_handler(account_interaction_history, acc_inter_cb_data.filter(id="history"))
     dp.register_callback_query_handler(account_interaction_cancel_orders, acc_inter_cb_data.filter(id="cancel"))
+    dp.register_callback_query_handler(account_interaction_cancel_orders_confirm, acc_inter_cancel_cb_data.filter(id="yes"))
     dp.register_callback_query_handler(account_interaction_back_button, acc_inter_cb_data.filter(id="back"))
 
 

@@ -2,3 +2,5 @@ env
 .env
 .vscode
 systemd
+.gitignore
+__pycache__

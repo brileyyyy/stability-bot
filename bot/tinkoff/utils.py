@@ -18,7 +18,7 @@ def to_float(amount: MoneyValue) -> float:
 
 
 def round(value: float) -> float:
-	return int(value) if value - int(value) == 0 else "{:.2f}".format(value)
+	return int(value) if value - int(value) == 0 else float("{:.2f}".format(value))
 
 
 def get_from_period(period: str) -> datetime:
@@ -43,6 +43,7 @@ def is_margin_trading(acc_name: str):
 		for account in accounts.accounts:
 			if (account.name == acc_name):
 				account_id = account.id
+				break
 
 		try:
 			client.users.get_margin_attributes(account_id=account_id)
