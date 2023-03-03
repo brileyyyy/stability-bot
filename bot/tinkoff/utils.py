@@ -1,9 +1,16 @@
 import os
 from datetime import datetime, timedelta
+from typing import List
 
 from bot.tinkoff.api import get_accounts
 
-from tinkoff.invest import Client, MoneyValue, RequestError
+from tinkoff.invest import (
+    Client, 
+    MoneyValue, 
+    RequestError,
+    OperationItem,
+    OperationType,
+)
 
 
 def abc(nano):
@@ -23,6 +30,7 @@ def round(value: float) -> float:
 
 def get_from_period(period: str) -> datetime:
 	to = datetime.now()
+	fr = datetime.now()
 	if period == "per day":
 		fr = datetime.replace(to, hour=0, minute=0, second=0, microsecond=0)
 	elif period == "per week":
@@ -52,4 +60,39 @@ def is_margin_trading(acc_name: str):
 			err = 0
 
 	return err
+
+
+def buy_sell_equal(trades: List[OperationItem], name: str, client: Client):
+	buy = 0; sell = 0
+	buy_lots = 0; sell_lots = 0
+
+	for trade in trades:
+		if trade.name == name:
+			if trade.type == OperationType.OPERATION_TYPE_BUY:
+				buy += 1
+				buy_lots += trade.quantity
+			elif trade.type == OperationType.OPERATION_TYPE_SELL:
+				sell += 1
+				sell_lots += trade.quantity
+	
+	return [buy, sell, buy_lots, sell_lots]
+
+
+def lots_count_equal(trades: List[OperationItem], name: str):
+	b = 0; s = 0
+	c = 0; max = 0
+
+	for trade in trades:
+		if trade.name == name:
+			if trade.type == OperationType.OPERATION_TYPE_BUY:
+				b += trade.quantity
+				c += 1
+			elif trade.type == OperationType.OPERATION_TYPE_SELL:
+				s += trade.quantity
+				c += 1
+
+			if b == s:
+				max = c
+
+	return max
 		

@@ -2,7 +2,13 @@ import os
 from typing import List
 
 from bot.tinkoff.api import get_accounts
-from bot.tinkoff.utils import to_float, round, get_from_period, abc
+from bot.tinkoff.utils import (
+    abc,
+    to_float, 
+    round, 
+    get_from_period,
+    buy_sell_equal
+)
 
 from tinkoff.invest import (
 	Client,
@@ -58,19 +64,6 @@ def get_yield(trades: List[OperationItem], name: str, direction: str, m: int = 0
 				comm -= to_float(trade.commission)
 
 	return [round(net), round(comm)]
-
-
-def buy_sell_equal(trades: List[OperationItem], name: str):
-	buy = 0; sell = 0
-
-	for trade in trades:
-		if trade.name == name:
-			if trade.type == OperationType.OPERATION_TYPE_BUY:
-				buy += trade.quantity
-			elif trade.type == OperationType.OPERATION_TYPE_SELL:
-				sell += trade.quantity
-	
-	return [buy, sell]
 
 
 def in_portfolio(client: Client, account_id: str, figi: str) -> int:
