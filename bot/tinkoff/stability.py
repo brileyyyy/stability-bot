@@ -5,15 +5,15 @@ from bot.tinkoff.api import get_accounts
 from bot.tinkoff.utils import (
     abc,
     to_float, 
-    round, 
     get_from_period,
     buy_sell_equal,
-    lots_count_equal
+    in_portfolio,
+    count_in_portfolio,
+    lots_count_equal,
 )
 
 from tinkoff.invest import (
 	Client,
-	PortfolioResponse,
 	GetOperationsByCursorRequest,
 	OperationItem,
 	OperationType,
@@ -34,17 +34,20 @@ def get_stability(trades: List[OperationItem], name: str, count_in_lot: int, shi
 
 			if trade.type == OperationType.OPERATION_TYPE_BUY:
 				quantity_b = trade.quantity
-				price = abc(to_float(trade.payment) / trade.quantity)
+				price_b_1 = abc(to_float(trade.payment) / trade.quantity)
+				price_b_2 = to_float(trade.price)
+				min_price_b = min(price_b_1, price_b_2)
 				comm_of_one = to_float(trade.commission) / (quantity_b / count_in_lot)
 
 				if sells:
 					for item in sells:
 						if quantity_b == 0: break
 
-						if (item[1] - price) * trade.quantity > (abc(item[2] + to_float(trade.commission))):
-							prof += 1
-						else:
-							loss += 1
+						if quantity_b >= item[0]:
+							if (item[1] - min_price_b) * trade.quantity > (abc(item[2] + to_float(trade.commission))):
+								prof += 1
+							else:
+								loss += 1
 
 						if item[0] == quantity_b:
 							quantity_b -= item[0]
@@ -53,27 +56,29 @@ def get_stability(trades: List[OperationItem], name: str, count_in_lot: int, shi
 							quantity_b -= item[0]
 							sells = sells[sells.index(item) + 1:]
 							if not sells:
-								buys.append([quantity_b, price, comm_of_one * (quantity_b / count_in_lot)])
+								buys.append([quantity_b, min_price_b, comm_of_one * (quantity_b / count_in_lot)])
 						else:
 							item[0] -= quantity_b
 							quantity_b = 0
 							sells = sells[sells.index(item):]
 				else:
-					buys.append([quantity_b, price, to_float(trade.commission)])
+					buys.append([quantity_b, min_price_b, to_float(trade.commission)])
 			elif trade.type == OperationType.OPERATION_TYPE_SELL:
 				quantity_s = trade.quantity
-				price = to_float(trade.payment) / trade.quantity
+				price_s_1 = to_float(trade.payment) / trade.quantity
+				price_s_2 = to_float(trade.price)
+				min_price_s = min(price_s_1, price_s_2)
 				comm_of_one = to_float(trade.commission) / (quantity_s / count_in_lot)
-				# пересчитать комиссию (1.2 != 1.02)
 
 				if buys:
 					for item in buys:
 						if quantity_s == 0: break
 
-						if (price - item[1]) * trade.quantity > (abc(item[2] + to_float(trade.commission))):
-							prof += 1
-						else:
-							loss += 1
+						if quantity_s >= item[0]:
+							if (min_price_s - item[1]) * trade.quantity > (abc(item[2] + to_float(trade.commission))):
+								prof += 1
+							else:
+								loss += 1
 
 						if item[0] == quantity_s:
 							quantity_s -= item[0]
@@ -82,91 +87,15 @@ def get_stability(trades: List[OperationItem], name: str, count_in_lot: int, shi
 							quantity_s -= item[0]
 							buys = buys[buys.index(item) + 1:]
 							if not buys:
-								sells.append([quantity_s, price, comm_of_one * (quantity_s / count_in_lot)])
+								sells.append([quantity_s, min_price_s, comm_of_one * (quantity_s / count_in_lot)])
 						else:
 							item[0] -= quantity_s
 							quantity_s = 0
 							buys = buys[buys.index(item):]
 				else:
-					sells.append([quantity_s, price, to_float(trade.commission)])
+					sells.append([quantity_s, min_price_s, to_float(trade.commission)])
 
 	return [prof, loss]
-
-
-def count_in_portfolio(trades: List[OperationItem], name: str, quantity: int, buy: int, sell: int, buy_lots: int, sell_lots: int) -> float:
-	buys = []; sells = []
-	count_in_portfolio = 0
-	last_operation = None
-
-	i = 0
-	while i < len(trades):
-		if trades[i].name == name:
-			if trades[i].type == OperationType.OPERATION_TYPE_BUY:
-				quantity_b = trades[i].quantity
-
-				if sells:
-					for item in sells:
-						if quantity_s == 0: break
-
-						if item == quantity_b:
-							sells.pop(0)
-							buy -= 1
-							sell -= 1
-						elif item < quantity_b:
-							sells.pop(0)
-							sell -= 1
-							buys.append(quantity_b - item)
-						else:
-							item -= quantity_b
-							quantity_b = 0
-				else:
-					buys.append(quantity_b)
-			elif trades[i].type == OperationType.OPERATION_TYPE_SELL:
-				quantity_s = trades[i].quantity
-
-				if buys:
-					for item in buys:
-						if quantity_s == 0: break
-
-						if item == quantity_s:
-							buys.pop(0)
-							buy -= 1
-							sell -= 1
-						elif item < quantity_s:
-							buys.pop(0)
-							buy -= 1
-							sells.append(quantity_s - item)
-						else:
-							item -= quantity_s
-							quantity_s = 0
-				else:
-					sells.append(quantity_s)
-
-			if sum(buys) == quantity:
-				count_in_portfolio = len(buys)
-				buy_lots -= sum(buys)
-				last_operation = OperationType.OPERATION_TYPE_BUY
-				break
-			elif -sum(sells) == quantity:
-				count_in_portfolio = len(sells)
-				sell_lots -= sum(sells)
-				last_operation = OperationType.OPERATION_TYPE_SELL
-				break
-		i += 1
-
-	return [count_in_portfolio, last_operation, buy, sell, buy_lots, sell_lots]
-
-
-def in_portfolio(client: Client, account_id: str, figi: str) -> int:
-	quantity: int = 0
-	response: PortfolioResponse = client.operations.get_portfolio(account_id=account_id)
-	
-	for position in response.positions:
-		if position.figi == figi:
-			quantity = round(to_float(position.quantity))
-			break
-		
-	return quantity
 
 
 def last_portfolio_operation_handler(trades, name, buy, sell, buy_lots, sell_lots, count, count_in_lot):
@@ -198,9 +127,9 @@ def get_operations_stability(acc_name: str, period: str):
 
 	with Client(TOKEN) as client:
 		accounts = get_accounts()
-		for account in accounts.accounts:
-			if (account.name == acc_name):
-				account_id = account.id
+		for acc in accounts:
+			if (acc.name == acc_name):
+				account_id = acc.id
 				break
 
 		fr = get_from_period(period)
@@ -240,7 +169,7 @@ def get_operations_stability(acc_name: str, period: str):
                 id=trade.figi
             )
 			count_in_lot = instrument.instrument.lot
-			buy, sell, buy_lots, sell_lots = buy_sell_equal(trades, name, client)
+			buy, sell, buy_lots, sell_lots = buy_sell_equal(trades, name)
 
 			count, last_operation, buy, sell, buy_lots, sell_lots = count_in_portfolio(trades, name, quantity, buy, sell, buy_lots, sell_lots)
 

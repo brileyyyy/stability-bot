@@ -3,7 +3,12 @@ import os
 from bot.tinkoff.api import get_accounts
 from bot.tinkoff.utils import to_float, round
 
-from tinkoff.invest import Client, PortfolioResponse, ShareResponse, InstrumentIdType
+from tinkoff.invest import (
+    Client,
+    PortfolioResponse, 
+    ShareResponse, 
+    InstrumentIdType
+)
         
 
 def get_portfolio_report(acc_name: str):
@@ -12,9 +17,9 @@ def get_portfolio_report(acc_name: str):
 
 	with Client(TOKEN) as client:
 		accounts = get_accounts()
-		for account in accounts.accounts:
-			if (account.name == acc_name):
-				account_id = account.id
+		for acc in accounts:
+			if (acc.name == acc_name):
+				account_id = acc.id
 				break
 
 		response: PortfolioResponse = client.operations.get_portfolio(account_id=account_id)

@@ -51,9 +51,9 @@ def get_balance(acc_name: str):
 
 	with Client(TOKEN) as client:
 		accounts = get_accounts()
-		for account in accounts.accounts:
-			if (account.name == acc_name):
-				account_id = account.id
+		for acc in accounts:
+			if (acc.name == acc_name):
+				account_id = acc.id
 				break
 
 		response = client.operations.get_portfolio(account_id=account_id)

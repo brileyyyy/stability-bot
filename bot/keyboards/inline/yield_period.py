@@ -3,7 +3,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot.keyboards.inline.callback_data.callback_data import acc_inter_yield_cb_data
 
 
-def period_buttons(acc_name: str) -> InlineKeyboardMarkup:
+def yield_period_buttons(acc_name: str) -> InlineKeyboardMarkup:
 	yield_period = InlineKeyboardMarkup(row_width=1)
 
 	per_day = InlineKeyboardButton("Per Day", callback_data=acc_inter_yield_cb_data.new(

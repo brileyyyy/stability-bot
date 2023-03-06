@@ -4,23 +4,26 @@ from typing import List
 from bot.tinkoff.api import get_accounts
 from bot.tinkoff.utils import (
     abc,
-    to_float, 
-    round, 
+    to_float,
+    round,
     get_from_period,
-    buy_sell_equal
+    buy_sell_equal,
+    in_portfolio,
+    count_in_portfolio,
+    lots_count_equal
 )
 
 from tinkoff.invest import (
 	Client,
-	PortfolioResponse,
 	GetOperationsByCursorRequest,
-	OperationItem,
+	GetOperationsByCursorResponse,
 	OperationsResponse,
+	OperationItem,
 	OperationType
 )
 
 
-def get_yield(trades: List[OperationItem], name: str, direction: str, m: int = 0, shift: int = 0) -> float:
+def get_yield(trades: List[OperationItem], name: str, direction: str = "right", m: int = 0, shift: int = 0) -> float:
 	net: float = 0; comm: float = 0
 	step = 1
 
@@ -41,17 +44,19 @@ def get_yield(trades: List[OperationItem], name: str, direction: str, m: int = 0
 				if trade.type == OperationType.OPERATION_TYPE_BUY:
 					b += trade.quantity
 
-					pay_b = round(to_float(trade.payment))
-					pay_price_b = round(to_float(trade.price) * trade.quantity)
+					pay_b = to_float(trade.payment)
+					pay_price_b = to_float(trade.price) * trade.quantity
 					min_pay_b = min(abc(pay_b), pay_price_b)
 					res = pay_b if min_pay_b == abc(pay_b) else -pay_price_b
+
 					if b <= m:
 						net += res + to_float(trade.commission)
 				elif trade.type == OperationType.OPERATION_TYPE_SELL:
 					s += trade.quantity
 
-					pay_s = round(to_float(trade.payment))
-					pay_price_s = round(to_float(trade.price) * trade.quantity)
+					pay_s = to_float(trade.payment)
+					pay_price_s = to_float(trade.price) * trade.quantity
+					
 					if s <= m:
 						net += min(pay_s, pay_price_s) + to_float(trade.commission)
 
@@ -66,46 +71,40 @@ def get_yield(trades: List[OperationItem], name: str, direction: str, m: int = 0
 	return [round(net), round(comm)]
 
 
-def in_portfolio(client: Client, account_id: str, figi: str) -> int:
-	quantity: int = 0
-	response: PortfolioResponse = client.operations.get_portfolio(account_id=account_id)
-	
-	for position in response.positions:
-		if position.figi == figi:
-			quantity = abc(round(to_float(position.quantity)))
-			break
-		
-	return quantity
+def last_portfolio_operation_handler(trades, name, buy, sell, buy_lots, sell_lots, count):
+	m = buy - count
 
-def last_portfolio_operation_handler(trades, name, buy, sell, quantity):
-	m = buy - quantity
 	if m == sell:
 		net, comm = get_yield(trades, name, "left", m)
 	elif m < sell:
-		mod = sell - m
-		if mod < quantity:
-			net, comm = get_yield(trades, name, "left", m + mod)
-		elif mod > quantity:
-			net, comm = get_yield(trades, name, "right", m + mod)
+		if buy_lots == sell_lots:
+			net, comm = get_yield(trades, name)
+		else:
+			mod = sell - m
+			if mod < count:
+				net, comm = get_yield(trades, name, "left", m + mod)
+			elif mod > count:
+				net, comm = get_yield(trades, name, "right", m + mod)
 	else:
-		net, comm = get_yield(trades, name, "right", sell, quantity)
+		if buy_lots == sell_lots:
+			net, comm = get_yield(trades, name, "right", shift=count)
+		else:
+			net, comm = get_yield(trades, name, "right", sell, count)
 
-	open_pos = (buy + sell) - 2 * m
-
-	return [net, comm, open_pos]
+	return [net, comm]
 		
 
 def get_operations_yield(acc_name: str, period: str):
 	TOKEN = os.environ["INVEST_TOKEN"]
 	trades: List[OperationItem] = []
-	service_fee = 0; total_net = 0; total_comm = 0
+	service_fee = 0; margin_fee = 0; total_net = 0; total_comm = 0
 	answer = ""
 
 	with Client(TOKEN) as client:
 		accounts = get_accounts()
-		for account in accounts.accounts:
-			if (account.name == acc_name):
-				account_id = account.id
+		for acc in accounts:
+			if (acc.name == acc_name):
+				account_id = acc.id
 				break
 
 		fr = get_from_period(period)
@@ -116,18 +115,21 @@ def get_operations_yield(acc_name: str, period: str):
 		for op in operations.operations:
 			if op.operation_type == OperationType.OPERATION_TYPE_SERVICE_FEE:
 				service_fee = to_float(op.payment)
-				break
+			elif op.operation_type == OperationType.OPERATION_TYPE_MARGIN_FEE:
+				margin_fee = to_float(op.payment)
 
+			if service_fee and margin_fee:
+				break
+			
 		def get_request(cursor=""):
 			return GetOperationsByCursorRequest(
 				account_id=account_id,
 				from_=fr,
 				cursor=cursor,
-				limit=3,
 				operation_types=[OperationType.OPERATION_TYPE_BUY, OperationType.OPERATION_TYPE_SELL],
 			)
 
-		operations = client.operations.get_operations_by_cursor(get_request())
+		operations: GetOperationsByCursorResponse = client.operations.get_operations_by_cursor(get_request())
 		for item in operations.items:
 			if item.trades_info.trades:
 				trades.append(item)
@@ -144,40 +146,44 @@ def get_operations_yield(acc_name: str, period: str):
 			unique_trades.add(trade.name)
 
 		for name in unique_trades:
-			buy, sell = buy_sell_equal(trades, name)
-
 			for trade in trades:
 				if trade.name == name:
-					comm = -to_float(trade.commission)
 					figi = trade.figi
-					last_operation = trade.type
 					break
-			
+
+			quantity = in_portfolio(client, account_id, figi)
+			buy, sell, buy_lots, sell_lots = buy_sell_equal(trades, name)
+			count, last_operation, buy, sell, buy_lots, sell_lots = count_in_portfolio(trades, name, quantity, buy, sell, buy_lots, sell_lots)
+
 			if buy == 0 or sell == 0:
 				net = 0
-				open_pos = max(buy, sell)
-			elif buy == sell:
-				net, comm = get_yield(trades, name, "right")
-				open_pos = 0
-			elif in_portfolio(client, account_id, figi):
-				quantity = in_portfolio(client, account_id, figi)
+			if count:
+				if count > 0 and last_operation == OperationType.OPERATION_TYPE_SELL:
+					last_operation = OperationType.OPERATION_TYPE_BUY
+				elif count < 0 and last_operation == OperationType.OPERATION_TYPE_BUY:
+					last_operation = OperationType.OPERATION_TYPE_SELL
 
 				if last_operation == OperationType.OPERATION_TYPE_BUY:
-					net, comm, open_pos = last_portfolio_operation_handler(trades, name, buy, sell, quantity)
+					net, comm = last_portfolio_operation_handler(trades, name, buy, sell, buy_lots, sell_lots, count)
 				elif last_operation == OperationType.OPERATION_TYPE_SELL:
-					net, comm, open_pos = last_portfolio_operation_handler(trades, name, sell, buy, quantity)
+					net, comm = last_portfolio_operation_handler(trades, name, sell, buy, buy_lots, sell_lots, count)
 			else:
-				m = min(buy, sell)
-				net, comm = get_yield(trades, name, "right", m)
-				open_pos = (buy + sell) - 2 * m
+				if buy_lots == sell_lots:
+					net, comm = get_yield(trades, name)
+				else:
+					c = lots_count_equal(trades, name)
+					mod = (buy + sell) - c
+					net, comm = get_yield(trades, name, shift=mod)
 
 			total_net += float(net)
 			total_comm += float(comm)
-			open_pos = f"Open positions: {round(open_pos)}\n\n" if open_pos else "\n"
-			answer += f"<b>{name}</b>\nNet: {net}\nComm: {comm}\n{open_pos}"
+			count = f"Open positions: {count}\n\n" if count else "\n"
+			answer += f"<b>{name}</b>\nNet: {net}\nComm: {comm}\n{count}"
 
 	if service_fee:
 		total_net += service_fee
+	if margin_fee:
+		total_net += margin_fee
 
-	service_fee = f"<b>Additional Comm:</b> {-round(service_fee)} ₽\n" if service_fee else ""
-	return f"<b>Net:</b> {round(total_net)} ₽\n<b>Comm:</b> {round(total_comm)} ₽\n{service_fee}\n" + answer
+	add_comm = f"<b>Additional Comm:</b> {-round(service_fee) - round(margin_fee)} ₽\n" if service_fee or margin_fee else ""
+	return f"<b>Net:</b> {round(total_net)} ₽\n<b>Comm:</b> {round(total_comm)} ₽\n{add_comm}\n" + answer
