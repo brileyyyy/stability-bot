@@ -31,8 +31,9 @@ from bot.filters.check_token_filter import CheckTokenFilter
 
 async def accounts(message: types.Message):
     response = get_accounts()
+
     await message.answer(f"Choose an account from the list below:", 
-                            reply_markup=accounts_buttons(response))
+                        reply_markup=accounts_buttons(response, ""))
 
 
 async def account_button(call: types.CallbackQuery, callback_data: dict):
@@ -56,6 +57,13 @@ async def account_interaction_balance(call: types.CallbackQuery, callback_data: 
                                 f"{balance}", reply_markup=back_button(acc_name))
 
 
+async def account_interaction_stability_period(call: types.CallbackQuery, callback_data: dict):
+    acc_name = callback_data.get("acc_name")
+
+    await call.message.edit_text(f"Choose a period:\n",
+                                reply_markup=stability_period_buttons(acc_name, False, ""))
+    
+
 async def account_interaction_stability(call: types.CallbackQuery, callback_data: dict):
     acc_name = callback_data.get("acc_name")
     period = callback_data.get("period")
@@ -65,6 +73,13 @@ async def account_interaction_stability(call: types.CallbackQuery, callback_data
                                  reply_markup=back_button(acc_name))
 
 
+async def account_interaction_yield_period(call: types.CallbackQuery, callback_data: dict):
+    acc_name = callback_data.get("acc_name")
+
+    await call.message.edit_text(f"Choose a period:\n",
+                                reply_markup=yield_period_buttons(acc_name, False, ""))
+    
+
 async def account_interaction_yield(call: types.CallbackQuery, callback_data: dict):
     acc_name = callback_data.get("acc_name")
     period = callback_data.get("period")
@@ -72,20 +87,6 @@ async def account_interaction_yield(call: types.CallbackQuery, callback_data: di
 
     await call.message.edit_text(f"Yield on Account: {acc_name}\n\n{yieldd}", 
                                  reply_markup=back_button(acc_name))
-
-
-async def account_interaction_yield_period(call: types.CallbackQuery, callback_data: dict):
-    acc_name = callback_data.get("acc_name")
-
-    await call.message.edit_text(f"Choose a period:\n",
-                                reply_markup=yield_period_buttons(acc_name))
-    
-
-async def account_interaction_stability_period(call: types.CallbackQuery, callback_data: dict):
-    acc_name = callback_data.get("acc_name")
-
-    await call.message.edit_text(f"Choose a period:\n",
-                                reply_markup=stability_period_buttons(acc_name))
     
 
 async def account_interaction_report(call: types.CallbackQuery, callback_data: dict):
@@ -109,6 +110,7 @@ async def account_interaction_cancel_orders(call: types.CallbackQuery, callback_
 
     await call.message.edit_text(f"Are you sure you want to cancel all orders?",
                             reply_markup=cancel_orders_buttons(acc_name))
+
     
 async def account_interaction_cancel_orders_confirm(call: types.CallbackQuery, callback_data: dict):
     acc_name = callback_data.get("acc_name")
@@ -120,13 +122,13 @@ async def account_interaction_cancel_orders_confirm(call: types.CallbackQuery, c
 async def account_interaction_back_button(call: types.CallbackQuery):
     response = get_accounts()
     await call.message.edit_text(f"Choose an account from the list below:", 
-                                reply_markup=accounts_buttons(response))
+                                reply_markup=accounts_buttons(response, ""))
     
 
 # ===============================   REGISTRATION   ===============================
 
 def register_accounts(dp: Dispatcher):
-    dp.register_message_handler(accounts, CheckTokenFilter(), commands=["myaccounts", "balance", "stability", "cancelorders"])
+    dp.register_message_handler(accounts, CheckTokenFilter(), commands=["myaccounts"])
     dp.register_callback_query_handler(account_button,
         acc_cb_data.filter(id="acc") |
         acc_inter_cancel_cb_data.filter(id="back") |
@@ -134,10 +136,10 @@ def register_accounts(dp: Dispatcher):
         acc_inter_yield_cb_data.filter(id="back") |
         acc_inter_stability_cb_data.filter(id="back"))
     dp.register_callback_query_handler(account_interaction_balance, acc_inter_cb_data.filter(id="balance"))
-    dp.register_callback_query_handler(account_interaction_yield_period, acc_inter_cb_data.filter(id="yield"))
-    dp.register_callback_query_handler(account_interaction_yield, acc_inter_yield_cb_data.filter(id="period"))
     dp.register_callback_query_handler(account_interaction_stability_period, acc_inter_cb_data.filter(id="stability"))
     dp.register_callback_query_handler(account_interaction_stability, acc_inter_stability_cb_data.filter(id="period"))
+    dp.register_callback_query_handler(account_interaction_yield_period, acc_inter_cb_data.filter(id="yield"))
+    dp.register_callback_query_handler(account_interaction_yield, acc_inter_yield_cb_data.filter(id="period"))
     dp.register_callback_query_handler(account_interaction_report, acc_inter_cb_data.filter(id="report"))
     dp.register_callback_query_handler(account_interaction_history, acc_inter_cb_data.filter(id="history"))
     dp.register_callback_query_handler(account_interaction_cancel_orders, acc_inter_cb_data.filter(id="cancel"))

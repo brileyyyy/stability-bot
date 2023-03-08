@@ -10,7 +10,8 @@ import logging
 from bot.config import get_config
 
 from bot.handlers.start import register_on_start
-from bot.handlers.my_accounts import register_accounts
+from bot.handlers.accounts import register_accounts
+from bot.handlers.accounts_from_commands import register_accounts_from_commands
 from bot.handlers.token import register_token_options
 
 from bot.misc.set_commands import set_commands
@@ -29,6 +30,7 @@ def register_all_handlers(dp: Dispatcher):
 	register_token_options(dp)
 	register_on_start(dp)
 	register_accounts(dp)
+	register_accounts_from_commands(dp)
 
 
 async def main():
@@ -41,7 +43,7 @@ async def main():
 
 	config = get_config(".env")
 
-	bot = Bot(token=config.bot.token, parse_mode="HTML", proxy="http://proxy.server:3128")
+	bot = Bot(token=config.bot.token, parse_mode="HTML") #proxy="http://proxy.server:3128")
 	storage = RedisStorage2() if config.bot.use_redis else MemoryStorage()
 	dp = Dispatcher(bot, storage=storage)
 
