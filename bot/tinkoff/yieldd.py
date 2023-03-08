@@ -155,8 +155,6 @@ def get_operations_yield(acc_name: str, period: str):
 			buy, sell, buy_lots, sell_lots = buy_sell_equal(trades, name)
 			count, last_operation, buy, sell, buy_lots, sell_lots = count_in_portfolio(trades, name, quantity, buy, sell, buy_lots, sell_lots)
 
-			if buy == 0 or sell == 0:
-				net = 0
 			if count:
 				if count > 0 and last_operation == OperationType.OPERATION_TYPE_SELL:
 					last_operation = OperationType.OPERATION_TYPE_BUY
@@ -174,6 +172,9 @@ def get_operations_yield(acc_name: str, period: str):
 					c = lots_count_equal(trades, name)
 					mod = (buy + sell) - c
 					net, comm = get_yield(trades, name, shift=mod)
+
+			if buy == 0 or sell == 0:
+				net = 0
 
 			total_net += float(net)
 			total_comm += float(comm)
