@@ -1,5 +1,3 @@
-import os
-
 from tinkoff.invest import (
     Client, 
     GetAccountsResponse,
@@ -8,8 +6,7 @@ from tinkoff.invest import (
 )
 
 
-def get_accounts() -> GetAccountsResponse:
-    TOKEN = os.environ["INVEST_TOKEN"]
+def get_accounts(TOKEN: str) -> GetAccountsResponse:
     res = []
 
     with Client(TOKEN) as client:
@@ -21,11 +18,9 @@ def get_accounts() -> GetAccountsResponse:
     return res
 	
 
-def cancel_orders(acc_name: str):
-    TOKEN = os.environ["INVEST_TOKEN"]
-    
+def cancel_orders(acc_name: str, TOKEN: str):
     with Client(TOKEN) as client:
-        accounts = get_accounts()
+        accounts = get_accounts(TOKEN)
         for account in accounts:
             if (account.name == acc_name):
                 account_id = account.id
@@ -33,11 +28,9 @@ def cancel_orders(acc_name: str):
         # client.cancel_all_orders(account_id=account_id)
 
 
-def is_margin_trading(acc_name: str):
-	TOKEN = os.environ["INVEST_TOKEN"]
-
+def is_margin_trading(acc_name: str, TOKEN: str):
 	with Client(TOKEN) as client:
-		accounts = get_accounts()
+		accounts = get_accounts(TOKEN)
 		for acc in accounts:
 			if (acc.name == acc_name):
 				account_id = acc.id

@@ -1,4 +1,3 @@
-import os
 from typing import List
 
 from bot.tinkoff.api import get_accounts
@@ -10,18 +9,18 @@ from tinkoff.invest import (
     OperationType,
     OperationItem,
     ShareResponse,
-    InstrumentIdType
+    InstrumentIdType,
+    RequestError
 )
 
 
-def get_operations_history(acc_name: str):
-    TOKEN = os.environ["INVEST_TOKEN"]
+def get_operations_history(acc_name: str, TOKEN: str):
     trades: List[OperationItem] = []
     ans = {}
     answer = ""
     
     with Client(TOKEN) as client:
-        accounts = get_accounts()
+        accounts = get_accounts(TOKEN)
         for acc in accounts:
             if (acc.name == acc_name):
                 account_id = acc.id
@@ -59,10 +58,14 @@ def get_operations_history(acc_name: str):
             date = f"{day}.{month}.{trade.date.year}"
             price = to_float(trade.price)
 
-            instrument: ShareResponse = client.instruments.share_by(
-                id_type=InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI, 
-                id=trade.figi
-            )
+            try:
+                instrument: ShareResponse = client.instruments.share_by(
+                    id_type=InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI, 
+                    id=trade.figi
+                )
+            except RequestError:
+                continue
+            
             ans[date] += f"{instrument.instrument.ticker} - {trade.quantity} шт - {round(price)} ₽\n"
 
         for item in ans:

@@ -3,3 +3,4 @@ env
 .vscode
 systemd
 __pycache__
+stability.db

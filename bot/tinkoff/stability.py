@@ -1,4 +1,3 @@
-import os
 from typing import List
 
 from bot.tinkoff.api import get_accounts
@@ -119,14 +118,13 @@ def last_portfolio_operation_handler(trades, name, buy, sell, buy_lots, sell_lot
 	return [prof, loss]
 		
 
-def get_operations_stability(acc_name: str, period: str):
-	TOKEN = os.environ["INVEST_TOKEN"]
+def get_operations_stability(acc_name: str, TOKEN: str, period: str):
 	trades: List[OperationItem] = []
 	prof_trades = 0; loss_trades = 0
 	answer = ""
 
 	with Client(TOKEN) as client:
-		accounts = get_accounts()
+		accounts = get_accounts(TOKEN)
 		for acc in accounts:
 			if (acc.name == acc_name):
 				account_id = acc.id

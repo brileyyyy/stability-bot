@@ -1,35 +1,34 @@
-import os
-
 from aiogram import Dispatcher, types
 
 from bot.filters.check_token_filter import CheckTokenFilter
 from bot.filters.parse_token_filter import ParseTokenFilter
+from bot.misc.database.db import db
 
-from tinkoff.invest import RequestError
-
-from bot.tinkoff.api import get_accounts
+from tinkoff.invest import RequestError, Client
 
 
 async def get_option(message: types.Message):
-	TOKEN = os.environ["INVEST_TOKEN"]
+	TOKEN = db.get_token(message.from_user.id)
+
 	await message.answer(f"Here is your TI token:\n\n<code>{TOKEN}</code>")
 
 
 async def set_option(message: types.Message):
-	TOKEN = os.environ["INVEST_TOKEN"]
-	if TOKEN:
-		await message.answer("You are already register a token.")
-	else:
+	TOKEN = db.get_token(message.from_user.id)
+
+	if TOKEN == "notoken":
 		await message.answer("Send me a token string.")
+	else:
+		await message.answer("You are already register a token.")
 
 
 async def parse_token(message: types.Message):
-	os.environ["INVEST_TOKEN"] = message.text
 	try:
-		get_accounts()
+		with Client(message.text):
+			pass
+		db.set_token(message.from_user.id, message.text)
 		ans = "You have registered a TI token! 🔥\nNow you have access to all options of Stability."
 	except RequestError:
-		os.environ["INVEST_TOKEN"] = ""
 		ans = "Invalid token string."
 
 	await message.answer(ans)

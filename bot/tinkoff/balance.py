@@ -1,5 +1,3 @@
-import os
-
 from bot.tinkoff.api import get_accounts
 from bot.tinkoff.utils import to_float, round
 
@@ -40,9 +38,7 @@ def balance_info(response: PortfolioResponse, value: float, header: str):
 	else ""
 
 
-def get_balance(acc_name: str):
-	TOKEN = os.environ["INVEST_TOKEN"]
-
+def get_balance(acc_name: str, TOKEN: str):
 	def get_gift_shares(response: PortfolioResponse) -> float:
 		res = 0
 		for position in response.virtual_positions:
@@ -50,7 +46,7 @@ def get_balance(acc_name: str):
 		return res
 
 	with Client(TOKEN) as client:
-		accounts = get_accounts()
+		accounts = get_accounts(TOKEN)
 		for acc in accounts:
 			if (acc.name == acc_name):
 				account_id = acc.id

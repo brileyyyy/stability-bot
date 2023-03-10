@@ -17,18 +17,20 @@ from bot.keyboards.inline.callback_data.callback_data import (
     acc_inter_stability_cb_data,
 )
 from bot.filters.check_token_filter import CheckTokenFilter
+from bot.misc.database.db import db
 
 
 # =================================   ACCOUNTS   =================================
 
 async def accounts(message: types.Message):
+    TOKEN = db.get_token(message.from_user.id)
     command = message.get_command()
-    response = get_accounts()
+    response = get_accounts(TOKEN)
     margin_accounts = []
     accounts = []
 
     for account in response:
-        if is_margin_trading(account.name):
+        if is_margin_trading(account.name, TOKEN):
             margin_accounts.append(account)
         else:
             accounts.append(account)
@@ -47,8 +49,9 @@ async def accounts(message: types.Message):
 # ============================   ACCOUNT INTERACTIONS   ============================
 
 async def account_interaction_balance(call: types.CallbackQuery, callback_data: dict):
+    TOKEN = db.get_token(call.from_user.id)
     acc_name = callback_data.get('acc_name')
-    balance = get_balance(acc_name)
+    balance = get_balance(acc_name, TOKEN)
 
     await call.message.edit_text(f"Balance on Account: {callback_data.get('acc_name')}\n\n"
                                  f"{balance}")
@@ -62,9 +65,10 @@ async def account_interaction_stability_period(call: types.CallbackQuery, callba
     
 
 async def account_interaction_stability(call: types.CallbackQuery, callback_data: dict):
+    TOKEN = db.get_token(call.from_user.id)
     acc_name = callback_data.get("acc_name")
     period = callback_data.get("period")
-    stability = get_operations_stability(acc_name, period)
+    stability = get_operations_stability(acc_name, TOKEN, period)
 
     await call.message.edit_text(f"Stability on Account: {acc_name}\n\n{stability}", reply_markup=None)
 
@@ -77,23 +81,26 @@ async def account_interaction_yield_period(call: types.CallbackQuery, callback_d
     
 
 async def account_interaction_yield(call: types.CallbackQuery, callback_data: dict):
+    TOKEN = db.get_token(call.from_user.id)
     acc_name = callback_data.get("acc_name")
     period = callback_data.get("period")
-    yieldd = get_operations_yield(acc_name, period)
+    yieldd = get_operations_yield(acc_name, TOKEN, period)
 
     await call.message.edit_text(f"Yield on Account: {acc_name}\n\n{yieldd}")
     
 
 async def account_interaction_report(call: types.CallbackQuery, callback_data: dict):
+    TOKEN = db.get_token(call.from_user.id)
     acc_name = callback_data.get("acc_name")
-    ans = get_portfolio_report(acc_name)
+    ans = get_portfolio_report(acc_name, TOKEN)
 
     await call.message.edit_text(f"Report on Account: {acc_name}\n\n{ans}")
     
 
 async def account_interaction_history(call: types.CallbackQuery, callback_data: dict):
+    TOKEN = db.get_token(call.from_user.id)
     acc_name = callback_data.get("acc_name")
-    ans = get_operations_history(acc_name)
+    ans = get_operations_history(acc_name, TOKEN)
 
     await call.message.edit_text(f"History on Account: {acc_name}\n\n{ans}")
     

@@ -1,11 +1,11 @@
-import os
-
 from aiogram.dispatcher.filters import BoundFilter
 from aiogram import types
+
+from bot.misc.database.db import db
 
 
 class ParseTokenFilter(BoundFilter):
 	async def check(self, message: types.Message) -> bool:
-		TOKEN = os.environ["INVEST_TOKEN"]
+		TOKEN = db.get_token(message.from_user.id)
 		
-		return message.text.startswith("t.") and not TOKEN
+		return message.text.startswith("t.") and TOKEN == "notoken"
