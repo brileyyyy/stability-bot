@@ -32,7 +32,7 @@ from bot.misc.database.db import db
 
 async def accounts(message: types.Message):
     TOKEN = db.get_token(message.from_user.id)
-    response = get_accounts(TOKEN)
+    response = await get_accounts(TOKEN)
 
     await message.answer(f"Choose an account from the list below:", 
                         reply_markup=accounts_buttons(response, ""))
@@ -42,9 +42,9 @@ async def account_button(call: types.CallbackQuery, callback_data: dict):
     TOKEN = db.get_token(call.from_user.id)
     acc_name = callback_data.get("acc_name")
     
-    reply_markup = account_interaction_buttons(acc_name) \
-    if is_margin_trading(acc_name, TOKEN) \
-    else account_interaction_buttons_margin(acc_name)
+    reply_markup = account_interaction_buttons_margin(acc_name) \
+    if await is_margin_trading(acc_name, TOKEN) \
+    else account_interaction_buttons(acc_name)
 
     await call.message.edit_text(text=f"Here it is: {callback_data.get('acc_name')}\n"
                                 "What do you want to do with the account?", 
@@ -56,7 +56,7 @@ async def account_button(call: types.CallbackQuery, callback_data: dict):
 async def account_interaction_balance(call: types.CallbackQuery, callback_data: dict):
     TOKEN = db.get_token(call.from_user.id)
     acc_name = callback_data.get('acc_name')
-    balance = get_balance(acc_name, TOKEN)
+    balance = await get_balance(acc_name, TOKEN)
 
     await call.message.edit_text(f"Balance on Account: {callback_data.get('acc_name')}\n\n"
                                 f"{balance}", reply_markup=back_button(acc_name))
@@ -73,7 +73,7 @@ async def account_interaction_stability(call: types.CallbackQuery, callback_data
     TOKEN = db.get_token(call.from_user.id)
     acc_name = callback_data.get("acc_name")
     period = callback_data.get("period")
-    stability = get_operations_stability(acc_name, TOKEN, period)
+    stability = await get_operations_stability(acc_name, TOKEN, period)
 
     await call.message.edit_text(f"Stability on Account: {acc_name}\n\n{stability}",
                                  reply_markup=back_button(acc_name))
@@ -90,7 +90,7 @@ async def account_interaction_yield(call: types.CallbackQuery, callback_data: di
     TOKEN = db.get_token(call.from_user.id)
     acc_name = callback_data.get("acc_name")
     period = callback_data.get("period")
-    yieldd = get_operations_yield(acc_name, TOKEN, period)
+    yieldd = await get_operations_yield(acc_name, TOKEN, period)
 
     await call.message.edit_text(f"Yield on Account: {acc_name}\n\n{yieldd}", 
                                  reply_markup=back_button(acc_name))
@@ -99,7 +99,7 @@ async def account_interaction_yield(call: types.CallbackQuery, callback_data: di
 async def account_interaction_report(call: types.CallbackQuery, callback_data: dict):
     TOKEN = db.get_token(call.from_user.id)
     acc_name = callback_data.get("acc_name")
-    ans = get_portfolio_report(acc_name, TOKEN)
+    ans = await get_portfolio_report(acc_name, TOKEN)
 
     await call.message.edit_text(f"Report on Account: {acc_name}\n\n{ans}",
                                  reply_markup=back_button(acc_name))
@@ -108,7 +108,7 @@ async def account_interaction_report(call: types.CallbackQuery, callback_data: d
 async def account_interaction_history(call: types.CallbackQuery, callback_data: dict):
     TOKEN = db.get_token(call.from_user.id)
     acc_name = callback_data.get("acc_name")
-    ans = get_operations_history(acc_name, TOKEN)
+    ans = await get_operations_history(acc_name, TOKEN)
 
     await call.message.edit_text(f"History on Account: {acc_name}\n\n{ans}",
                                  reply_markup=back_button(acc_name))
@@ -124,14 +124,14 @@ async def account_interaction_cancel_orders(call: types.CallbackQuery, callback_
 async def account_interaction_cancel_orders_confirm(call: types.CallbackQuery, callback_data: dict):
     TOKEN = db.get_token(call.from_user.id)
     acc_name = callback_data.get("acc_name")
-    cancel_orders(acc_name, TOKEN)
+    await cancel_orders(acc_name, TOKEN)
 
     await call.answer("All orders have been cancelled.", show_alert=True)
 
 
 async def account_interaction_back_button(call: types.CallbackQuery):
     TOKEN = db.get_token(call.from_user.id)
-    response = get_accounts(TOKEN)
+    response = await get_accounts(TOKEN)
     await call.message.edit_text(f"Choose an account from the list below:", 
                                 reply_markup=accounts_buttons(response, ""))
     

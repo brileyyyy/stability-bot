@@ -9,19 +9,20 @@ from bot.tinkoff.utils import (
     in_portfolio,
     count_in_portfolio,
     lots_count_equal,
+    commission_by_tariff
 )
 
 from tinkoff.invest import (
-	Client,
+	AsyncClient,
 	GetOperationsByCursorRequest,
 	OperationItem,
 	OperationType,
-	ShareResponse,
+	InstrumentResponse,
 	InstrumentIdType
 )
 
 
-def get_stability(trades: List[OperationItem], name: str, count_in_lot: int, shift: int = 0) -> float:
+async def get_stability(client: AsyncClient, trades: List[OperationItem], name: str, count_in_lot: int, shift: int = 0) -> float:
 	buys = []; sells = []
 	prof = 0; loss = 0
 
@@ -33,17 +34,17 @@ def get_stability(trades: List[OperationItem], name: str, count_in_lot: int, shi
 
 			if trade.type == OperationType.OPERATION_TYPE_BUY:
 				quantity_b = trade.quantity
-				price_b_1 = abc(to_float(trade.payment) / trade.quantity)
-				price_b_2 = to_float(trade.price)
-				min_price_b = min(price_b_1, price_b_2)
-				comm_of_one = to_float(trade.commission) / (quantity_b / count_in_lot)
+				# price_b_1 = abc(to_float(trade.payment) / trade.quantity)
+				# price_b_2 = to_float(trade.price)
+				min_price = min(abc(to_float(trade.payment) / trade.quantity), to_float(trade.price))
+				comm_of_one = await commission_by_tariff(client, trade.instrument_type) * (min_price * (trade.quantity / count_in_lot))
 
 				if sells:
 					for item in sells:
 						if quantity_b == 0: break
 
 						if quantity_b >= item[0]:
-							if (item[1] - min_price_b) * trade.quantity > (abc(item[2] + to_float(trade.commission))):
+							if (item[1] - min_price) * trade.quantity > (abc(item[2] + to_float(trade.commission))):
 								prof += 1
 							else:
 								loss += 1
@@ -55,26 +56,26 @@ def get_stability(trades: List[OperationItem], name: str, count_in_lot: int, shi
 							quantity_b -= item[0]
 							sells = sells[sells.index(item) + 1:]
 							if not sells:
-								buys.append([quantity_b, min_price_b, comm_of_one * (quantity_b / count_in_lot)])
+								buys.append([quantity_b, min_price, comm_of_one * (quantity_b / count_in_lot)])
 						else:
 							item[0] -= quantity_b
 							quantity_b = 0
 							sells = sells[sells.index(item):]
 				else:
-					buys.append([quantity_b, min_price_b, to_float(trade.commission)])
+					buys.append([quantity_b, min_price, to_float(trade.commission)])
 			elif trade.type == OperationType.OPERATION_TYPE_SELL:
 				quantity_s = trade.quantity
-				price_s_1 = to_float(trade.payment) / trade.quantity
-				price_s_2 = to_float(trade.price)
-				min_price_s = min(price_s_1, price_s_2)
-				comm_of_one = to_float(trade.commission) / (quantity_s / count_in_lot)
+				# price_s_1 = to_float(trade.payment) / trade.quantity
+				# price_s_2 = to_float(trade.price)
+				min_price = min(to_float(trade.payment) / trade.quantity, to_float(trade.price))
+				comm_of_one = await commission_by_tariff(client, trade.instrument_type) * (min_price * (trade.quantity / count_in_lot))
 
 				if buys:
 					for item in buys:
 						if quantity_s == 0: break
 
 						if quantity_s >= item[0]:
-							if (min_price_s - item[1]) * trade.quantity > (abc(item[2] + to_float(trade.commission))):
+							if (min_price - item[1]) * trade.quantity > (abc(item[2] + to_float(trade.commission))):
 								prof += 1
 							else:
 								loss += 1
@@ -86,45 +87,45 @@ def get_stability(trades: List[OperationItem], name: str, count_in_lot: int, shi
 							quantity_s -= item[0]
 							buys = buys[buys.index(item) + 1:]
 							if not buys:
-								sells.append([quantity_s, min_price_s, comm_of_one * (quantity_s / count_in_lot)])
+								sells.append([quantity_s, min_price, comm_of_one * (quantity_s / count_in_lot)])
 						else:
 							item[0] -= quantity_s
 							quantity_s = 0
 							buys = buys[buys.index(item):]
 				else:
-					sells.append([quantity_s, min_price_s, to_float(trade.commission)])
+					sells.append([quantity_s, min_price, to_float(trade.commission)])
 
 	return [prof, loss]
 
 
-def last_portfolio_operation_handler(trades, name, buy, sell, buy_lots, sell_lots, count, count_in_lot):
+async def last_portfolio_operation_handler(client, trades, name, buy, sell, buy_lots, sell_lots, count, count_in_lot):
 	m = buy - count
 
 	if m == sell:
-		prof, loss = get_stability(trades, name, count_in_lot)
+		prof, loss = await get_stability(client, trades, name, count_in_lot)
 	elif m < sell:
 		if buy_lots == sell_lots:
-			prof, loss = get_stability(trades, name, count_in_lot)
+			prof, loss = await get_stability(client, trades, name, count_in_lot)
 		else:
 			mod = sell - m
-			prof, loss = get_stability(trades, name, count_in_lot, mod)
+			prof, loss = await get_stability(client, trades, name, count_in_lot, mod)
 	else:
 		if buy_lots == sell_lots:
-			prof, loss = get_stability(trades, name, count_in_lot)
+			prof, loss = await get_stability(client, trades, name, count_in_lot)
 		else:
 			mod = m - sell
-			prof, loss = get_stability(trades, name, count_in_lot, mod)
+			prof, loss = await get_stability(client, trades, name, count_in_lot, mod)
 
 	return [prof, loss]
 		
 
-def get_operations_stability(acc_name: str, TOKEN: str, period: str):
+async def get_operations_stability(acc_name: str, TOKEN: str, period: str):
 	trades: List[OperationItem] = []
 	prof_trades = 0; loss_trades = 0
 	answer = ""
 
-	with Client(TOKEN) as client:
-		accounts = get_accounts(TOKEN)
+	async with AsyncClient(TOKEN) as client:
+		accounts = await get_accounts(TOKEN)
 		for acc in accounts:
 			if (acc.name == acc_name):
 				account_id = acc.id
@@ -139,14 +140,14 @@ def get_operations_stability(acc_name: str, TOKEN: str, period: str):
 				operation_types=[OperationType.OPERATION_TYPE_BUY, OperationType.OPERATION_TYPE_SELL],
 			)
 
-		operations = client.operations.get_operations_by_cursor(get_request())
+		operations = await client.operations.get_operations_by_cursor(get_request())
 		for item in operations.items:
 			if item.trades_info.trades:
 				trades.append(item)
 
 		while operations.has_next:
 			request = get_request(cursor=operations.next_cursor)
-			operations = client.operations.get_operations_by_cursor(request)
+			operations = await client.operations.get_operations_by_cursor(request)
 			for item in operations.items:
 				if item.trades_info.trades:
 					trades.append(item)
@@ -161,8 +162,8 @@ def get_operations_stability(acc_name: str, TOKEN: str, period: str):
 					figi = trade.figi
 					break
 
-			quantity = in_portfolio(client, account_id, figi)
-			instrument: ShareResponse = client.instruments.share_by(
+			quantity = await in_portfolio(client, account_id, figi)
+			instrument: InstrumentResponse = await client.instruments.get_instrument_by(
                 id_type=InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI, 
                 id=trade.figi
             )
@@ -178,16 +179,16 @@ def get_operations_stability(acc_name: str, TOKEN: str, period: str):
 					last_operation = OperationType.OPERATION_TYPE_SELL
 
 				if last_operation == OperationType.OPERATION_TYPE_BUY:
-					prof, loss = last_portfolio_operation_handler(trades, name, buy, sell, buy_lots, sell_lots, count, count_in_lot)
+					prof, loss = await last_portfolio_operation_handler(client, trades, name, buy, sell, buy_lots, sell_lots, count, count_in_lot)
 				elif last_operation == OperationType.OPERATION_TYPE_SELL:
-					prof, loss = last_portfolio_operation_handler(trades, name, sell, buy, buy_lots, sell_lots, count, count_in_lot)
+					prof, loss = await last_portfolio_operation_handler(client, trades, name, sell, buy, buy_lots, sell_lots, count, count_in_lot)
 			else:
 				if buy_lots == sell_lots:
-					prof, loss = get_stability(trades, name, count_in_lot)
+					prof, loss = await get_stability(client, trades, name, count_in_lot)
 				else:
 					c = lots_count_equal(trades, name)
 					mod = (buy + sell) - c
-					prof, loss = get_stability(trades, name, count_in_lot, mod)
+					prof, loss = await get_stability(client, trades, name, count_in_lot, mod)
 
 			prof_trades += prof
 			loss_trades += loss

@@ -1,26 +1,25 @@
 from typing import List
 
 from bot.tinkoff.api import get_accounts
-from bot.tinkoff.utils import to_float, round
+from bot.tinkoff.utils import to_float, round, currency_by_ticker
 
 from tinkoff.invest import (
-    Client,
+    AsyncClient,
     GetOperationsByCursorRequest,
     OperationType,
     OperationItem,
-    ShareResponse,
     InstrumentIdType,
-    RequestError
+    InstrumentResponse
 )
 
 
-def get_operations_history(acc_name: str, TOKEN: str):
+async def get_operations_history(acc_name: str, TOKEN: str):
     trades: List[OperationItem] = []
     ans = {}
     answer = ""
     
-    with Client(TOKEN) as client:
-        accounts = get_accounts(TOKEN)
+    async with AsyncClient(TOKEN) as client:
+        accounts = await get_accounts(TOKEN)
         for acc in accounts:
             if (acc.name == acc_name):
                 account_id = acc.id
@@ -30,18 +29,17 @@ def get_operations_history(acc_name: str, TOKEN: str):
             return GetOperationsByCursorRequest(
 				account_id=account_id,
 				cursor=cursor,
-				limit=3,
 				operation_types=[OperationType.OPERATION_TYPE_BUY, OperationType.OPERATION_TYPE_SELL],
 			)
 
-        operations = client.operations.get_operations_by_cursor(get_request())
+        operations = await client.operations.get_operations_by_cursor(get_request())
         for item in operations.items:
             if item.trades_info.trades:
                 trades.append(item)
 
         while operations.has_next:
             request = get_request(cursor=operations.next_cursor)
-            operations = client.operations.get_operations_by_cursor(request)
+            operations = await client.operations.get_operations_by_cursor(request)
             for item in operations.items:
                 if item.trades_info.trades:
                     trades.append(item)
@@ -58,15 +56,13 @@ def get_operations_history(acc_name: str, TOKEN: str):
             date = f"{day}.{month}.{trade.date.year}"
             price = to_float(trade.price)
 
-            try:
-                instrument: ShareResponse = client.instruments.share_by(
-                    id_type=InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI, 
-                    id=trade.figi
-                )
-            except RequestError:
-                continue
+            instrument: InstrumentResponse = await client.instruments.get_instrument_by(
+                id_type=InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI,
+                id=trade.figi
+            )
+            curr_symbol = currency_by_ticker(instrument.instrument.currency)
             
-            ans[date] += f"{instrument.instrument.ticker} - {trade.quantity} шт - {round(price)} ₽\n"
+            ans[date] += f"{instrument.instrument.ticker} - {trade.quantity} шт - {round(price)} {curr_symbol}\n"
 
         for item in ans:
             answer += f"<b>{item}</b>\n{ans[item]}\n"

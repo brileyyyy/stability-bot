@@ -2,11 +2,12 @@ from datetime import datetime, timedelta
 from typing import List
 
 from tinkoff.invest import (
-    Client, 
+    AsyncClient, 
     MoneyValue, 
     OperationItem,
     OperationType,
-    PortfolioResponse
+    PortfolioResponse,
+    GetInfoResponse
 )
 
 
@@ -56,9 +57,9 @@ def buy_sell_equal(trades: List[OperationItem], name: str):
 	return [buy, sell, buy_lots, sell_lots]
 
 
-def in_portfolio(client: Client, account_id: str, figi: str) -> int:
+async def in_portfolio(client: AsyncClient, account_id: str, figi: str) -> int:
 	quantity: int = 0
-	response: PortfolioResponse = client.operations.get_portfolio(account_id=account_id)
+	response: PortfolioResponse = await client.operations.get_portfolio(account_id=account_id)
 	
 	for position in response.positions:
 		if position.figi == figi:
@@ -147,4 +148,75 @@ def lots_count_equal(trades: List[OperationItem], name: str):
 				max = c
 
 	return max
+
+
+def currency_by_ticker(curr: str) -> str:
+	if curr == "rub":
+		res = "₽"
+	if curr == "usd":
+		res = "$"
+	elif curr == "eur":
+		res = "€"
+	elif curr == "cny" or curr == "jpy":
+		res = "¥"
+	elif curr == "gbr":
+		res = "£"
+
+	return res
+
+
+async def commission_by_tariff(client: AsyncClient, type: str) -> float:
+	comm = 0.
+	tariff: GetInfoResponse = await client.users.get_info()
+
+	def investor_tariff():
+		res = 0.
+		if type == "share" or type == "bond" or type == "etf":
+			res = 0.3
+		elif type == "gold" or type == "silver":
+			res = 1.9
+		elif type == "currency":
+			res = 0.9
+		elif type == "future":
+			res = 0.3
+		elif type == "option":
+			res = 3
+		return res
+	
+	def trader_tariff():
+		res = 0.
+		if type == "share" or type == "bond" or type == "etf":
+			res = 0.05
+		elif type == "gold" or type == "silver":
+			res = 1.5
+		elif type == "currency":
+			res = 0.5
+		elif type == "future":
+			res = 0.04
+		elif type == "option":
+			res = 2
+		return res
+	
+	def premium_tariff():
+		res = 0.
+		if type == "share" or type == "bond" or type == "etf":
+			res = 0.04
+		elif type == "gold" or type == "silver":
+			res = 0.9
+		elif type == "currency":
+			res = 0.4
+		elif type == "future":
+			res = 0.025
+		elif type == "option":
+			res = 2
+		return res
+	
+	if tariff.tariff == "trader":
+		comm = trader_tariff()
+	elif tariff.tariff == "investor":
+		comm = investor_tariff()
+	elif tariff.tariff == "premium":
+		comm = premium_tariff()
+
+	return comm
 		
