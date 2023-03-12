@@ -117,7 +117,7 @@ async def account_interaction_history(call: types.CallbackQuery, callback_data: 
 async def account_interaction_cancel_orders(call: types.CallbackQuery, callback_data: dict):
     acc_name = callback_data.get("acc_name")
 
-    await call.message.edit_text(f"Are you sure you want to cancel all orders?",
+    await call.message.edit_text(f"You are about to cancel all orders on account: {acc_name}. Is that correct?",
                             reply_markup=cancel_orders_buttons(acc_name))
 
     
@@ -142,10 +142,10 @@ def register_accounts(dp: Dispatcher):
     dp.register_message_handler(accounts, CheckTokenFilter(), commands=["myaccounts"])
     dp.register_callback_query_handler(account_button,
         acc_cb_data.filter(id="acc") |
-        acc_inter_cancel_cb_data.filter(id="back") |
         acc_inter_balance_cb_data.filter(id="back") |
+        acc_inter_stability_cb_data.filter(id="back") |
         acc_inter_yield_cb_data.filter(id="back") |
-        acc_inter_stability_cb_data.filter(id="back"))
+        acc_inter_cancel_cb_data.filter(id="back"))
     dp.register_callback_query_handler(account_interaction_balance, acc_inter_cb_data.filter(id="balance"))
     dp.register_callback_query_handler(account_interaction_stability_period, acc_inter_cb_data.filter(id="stability"))
     dp.register_callback_query_handler(account_interaction_stability, acc_inter_stability_cb_data.filter(id="period"))

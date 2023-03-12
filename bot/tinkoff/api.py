@@ -25,7 +25,7 @@ async def cancel_orders(acc_name: str, TOKEN: str):
             if (account.name == acc_name):
                 account_id = account.id
                 break
-        # client.cancel_all_orders(account_id=account_id)
+        await client.cancel_all_orders(account_id=account_id)
 
 
 async def is_margin_trading(acc_name: str, TOKEN: str):
