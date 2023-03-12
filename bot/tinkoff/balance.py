@@ -1,7 +1,7 @@
 from collections import defaultdict
 
 from bot.tinkoff.api import get_accounts
-from bot.tinkoff.utils import to_float, round
+from bot.tinkoff.utils import abc, to_float, round
 
 from tinkoff.invest import AsyncClient, PortfolioResponse
 
@@ -11,31 +11,33 @@ def balance_info(response: PortfolioResponse):
 	ans = ""
 
 	for position in response.positions:
-		result["Total"] += to_float(position.expected_yield)
-	for position in response.virtual_positions:
-		result["Total"] += to_float(position.expected_yield)
+		average_yield = min(abc(to_float(position.expected_yield)), abc((to_float(position.current_price) - to_float(position.average_position_price)) * to_float(position.quantity)))
+		res = average_yield if to_float(position.expected_yield) > 0 else -average_yield
 
-	for position in response.positions:
+		result["Total"] += res
 		if position.instrument_type == "share":
-			result["Shares"] += to_float(position.expected_yield)
+			result["Shares"] += res
 		elif position.instrument_type == "bond":
-			result["Bonds"] += to_float(position.expected_yield)
+			result["Bonds"] += res
 		elif position.instrument_type == "future":
-			result["Futures"] += to_float(position.expected_yield)
+			result["Futures"] += res
 		elif position.instrument_type == "option":
-			result["Options"] += to_float(position.expected_yield)
+			result["Options"] += res
 		elif position.instrument_type == "etf":
-			result["Etf"] += to_float(position.expected_yield)
+			result["Etf"] += res
 		elif position.instrument_type == "sp":
-			result["SP"] += to_float(position.expected_yield)
+			result["SP"] += res
 	
 	for v_position in response.virtual_positions:
-		result["Gifts"] += to_float(v_position.expected_yield_fifo)
+		average_yield = min(abc(to_float(v_position.expected_yield)), abc((to_float(v_position.current_price) - to_float(v_position.average_position_price)) * to_float(v_position.quantity)))
+		res = average_yield if to_float(v_position.expected_yield) > 0 else -average_yield
+
+		result["Total"] += res
+		result["Gifts"] += res
 
 
 	for key in dict(result):
 		in_portfolio = total_by_type(response, key)
-		percentage_yield = result[key] * 100 / in_portfolio
 	
 		if result[key] < 0:
 			sign = "-"
@@ -44,7 +46,8 @@ def balance_info(response: PortfolioResponse):
 		elif result[key] > 0:
 			sign = "+"
 
-		if result[key] > 0:
+		if abc(result[key]) > 0 or in_portfolio:
+			percentage_yield = result[key] * 100 / in_portfolio
 			ans += f"<b>{key}</b>\n{in_portfolio} ₽ ({sign}{round(result[key])} ₽ · {round(percentage_yield)}%)\n\n"
 
 	return ans
