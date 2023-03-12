@@ -19,22 +19,20 @@ from tinkoff.invest import (
 	GetOperationsByCursorResponse,
 	OperationsResponse,
 	OperationItem,
-	OperationType
+	OperationType,
+	InstrumentResponse,
+	InstrumentIdType
 )
 
 
-async def get_yield(client: AsyncClient, trades: List[OperationItem], name: str, direction: str = "right", m: int = 0, shift: int = 0) -> float:
+async def get_yield(trades: List[OperationItem], name: str, base_comm: float, direction: str = "right", m: int = 0, shift: int = 0) -> float:
 	net: float = 0; comm: float = 0
 	step = 1
 
 	if direction == "left":
 		step = -1
 
-	if m:
-		for trade in trades:
-			if trade.name == name:
-				comm -= to_float(trade.commission)
-				
+	if m or shift:				
 		b = 0; s = 0
 		for trade in trades[::step]:
 			if shift != 0:
@@ -44,17 +42,27 @@ async def get_yield(client: AsyncClient, trades: List[OperationItem], name: str,
 				if trade.type == OperationType.OPERATION_TYPE_BUY:
 					b += trade.quantity
 					min_payment = min(abc(to_float(trade.payment)), to_float(trade.price) * trade.quantity)
-					trade_comm = round(await commission_by_tariff(client, trade.instrument_type) * to_float(trade.price) / 100 * trade.quantity)
+					trade_comm = round(base_comm * min_payment / 100)
 
-					if b <= m:
-						net -= min_payment
-						net -= trade_comm
+					if m:
+						if b <= m:
+							comm += trade_comm
+							net -= min_payment
+							net -= trade_comm
+					else:
+						comm += trade_comm
+						net -= (min_payment + trade_comm)
 				elif trade.type == OperationType.OPERATION_TYPE_SELL:
 					s += trade.quantity
 					min_payment = min(to_float(trade.payment), to_float(trade.price) * trade.quantity)
-					trade_comm = round(await commission_by_tariff(client, trade.instrument_type) * to_float(trade.price) / 100 * trade.quantity)
+					trade_comm = round(base_comm * min_payment / 100)
 					
-					if s <= m:
+					if m:
+						if s <= m:
+							comm += trade_comm
+							net += (min_payment - trade_comm)
+					else:
+						comm += trade_comm
 						net += (min_payment - trade_comm)
 
 				if (b == s == m):
@@ -68,7 +76,7 @@ async def get_yield(client: AsyncClient, trades: List[OperationItem], name: str,
 				elif trade.type == OperationType.OPERATION_TYPE_SELL:
 					res = min_pay
 
-				trade_comm = round(await commission_by_tariff(client, trade.instrument_type) * to_float(trade.price) / 100 * trade.quantity)
+				trade_comm = round(base_comm * abc(res) / 100)
 				
 				net += (res - trade_comm)
 				comm += trade_comm
@@ -76,27 +84,31 @@ async def get_yield(client: AsyncClient, trades: List[OperationItem], name: str,
 	return [round(net), round(comm)]
 
 
-async def last_portfolio_operation_handler(client, trades, name, buy, sell, buy_lots, sell_lots, count):
+async def last_portfolio_operation_handler(trades, name, buy, sell, buy_lots, sell_lots, count, base_comm):
 	m = buy - count
+	open_pos = 0
 
 	if m == sell:
-		net, comm = await get_yield(client, trades, name, "left", m)
+		net, comm = await get_yield(trades, name, base_comm, "left", m)
 	elif m < sell:
 		if buy_lots == sell_lots:
-			net, comm = await get_yield(client, trades, name)
+			net, comm = await get_yield(trades, name, base_comm)
 		else:
 			mod = sell - m
 			if mod < count:
-				net, comm = await get_yield(client, trades, name, "left", m + mod)
+				net, comm = await get_yield(trades, name, base_comm, "left", m + mod)
+				open_pos = count - mod
 			elif mod > count:
-				net, comm = await get_yield(client, trades, name, "right", m + mod)
+				net, comm = await get_yield(trades, name, base_comm, "right", m + mod)
+				open_pos = mod - count
 	else:
 		if buy_lots == sell_lots:
-			net, comm = await get_yield(client, trades, name, "right", shift=count)
+			net, comm = await get_yield(trades, name, base_comm, "right", shift=count)
 		else:
-			net, comm = await get_yield(client, trades, name, "right", sell, count)
+			net, comm = await get_yield(trades, name, base_comm, "right", sell, count)
+			open_pos = (m - sell) + count
 
-	return [net, comm]
+	return [net, comm, open_pos]
 		
 
 async def get_operations_yield(acc_name: str, TOKEN: str, period: str):
@@ -159,6 +171,12 @@ async def get_operations_yield(acc_name: str, TOKEN: str, period: str):
 			buy, sell, buy_lots, sell_lots = buy_sell_equal(trades, name)
 			count, last_operation, buy, sell, buy_lots, sell_lots = count_in_portfolio(trades, name, quantity, buy, sell, buy_lots, sell_lots)
 
+			instrument: InstrumentResponse = await client.instruments.get_instrument_by(
+				id_type=InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI,
+				id=figi
+			)
+			base_comm = await commission_by_tariff(client, instrument.instrument.instrument_type)
+
 			if count:
 				if count > 0 and last_operation == OperationType.OPERATION_TYPE_SELL:
 					last_operation = OperationType.OPERATION_TYPE_BUY
@@ -166,16 +184,19 @@ async def get_operations_yield(acc_name: str, TOKEN: str, period: str):
 					last_operation = OperationType.OPERATION_TYPE_SELL
 
 				if last_operation == OperationType.OPERATION_TYPE_BUY:
-					net, comm = last_portfolio_operation_handler(client, trades, name, buy, sell, buy_lots, sell_lots, count)
+					net, comm, open_pos = last_portfolio_operation_handler(trades, name, buy, sell, buy_lots, sell_lots, count, base_comm)
 				elif last_operation == OperationType.OPERATION_TYPE_SELL:
-					net, comm = last_portfolio_operation_handler(client, trades, name, sell, buy, buy_lots, sell_lots, count)
+					net, comm, open_pos = last_portfolio_operation_handler(trades, name, sell, buy, buy_lots, sell_lots, count, base_comm)
+
+				count = open_pos
 			else:
 				if buy_lots == sell_lots:
-					net, comm = await get_yield(client, trades, name)
+					net, comm = await get_yield(trades, name, base_comm)
 				else:
 					c = lots_count_equal(trades, name)
 					mod = (buy + sell) - c
-					net, comm = await get_yield(client, trades, name, shift=mod)
+					count = mod
+					net, comm = await get_yield(trades, name, base_comm, "left", shift=mod)
 
 			if buy == 0 or sell == 0:
 				net = 0
