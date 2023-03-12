@@ -39,15 +39,15 @@ def balance_info(response: PortfolioResponse):
 	for key in dict(result):
 		in_portfolio = total_by_type(response, key)
 	
-		if result[key] < 0:
-			sign = "-"
-		elif result[key] == 0:
-			sign = ""
-		elif result[key] > 0:
+		# if result[key] < 0:
+		# 	sign = "-"
+
+		sign = ""
+		if result[key] > 0:
 			sign = "+"
 
 		if abc(result[key]) > 0 or in_portfolio:
-			percentage_yield = result[key] * 100 / in_portfolio
+			percentage_yield = abc(result[key] * 100 / in_portfolio)
 			ans += f"<b>{key}</b>\n{in_portfolio} ₽ ({sign}{round(result[key])} ₽ · {round(percentage_yield)}%)\n\n"
 
 	return ans
