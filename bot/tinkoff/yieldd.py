@@ -97,10 +97,10 @@ async def last_portfolio_operation_handler(trades, name, buy, sell, buy_lots, se
 			mod = sell - m
 			if mod < count:
 				net, comm = await get_yield(trades, name, base_comm, "left", m + mod)
-				open_pos = count - mod
 			elif mod > count:
 				net, comm = await get_yield(trades, name, base_comm, "right", m + mod)
-				open_pos = mod - count
+
+			open_pos = abc(count - mod)
 	else:
 		if buy_lots == sell_lots:
 			net, comm = await get_yield(trades, name, base_comm, "right", shift=count)
