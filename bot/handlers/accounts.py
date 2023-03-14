@@ -7,7 +7,7 @@ from bot.tinkoff.yieldd import get_operations_yield
 from bot.tinkoff.stability import get_operations_stability
 from bot.tinkoff.report import get_portfolio_report
 from bot.tinkoff.history import get_operations_history
-from bot.tinkoff.api import is_margin_trading
+from bot.tinkoff.utils import get_trades_by_period
 
 from bot.keyboards.inline.accounts import accounts_buttons
 from bot.keyboards.inline.account_interaction_margin import account_interaction_buttons_margin
@@ -41,9 +41,11 @@ async def accounts(message: types.Message):
 async def account_button(call: types.CallbackQuery, callback_data: dict):
     TOKEN = db.get_token(call.from_user.id)
     acc_name = callback_data.get("acc_name")
+
+    trades_count = len(await get_trades_by_period(acc_name, TOKEN, "per month"))
     
     reply_markup = account_interaction_buttons_margin(acc_name) \
-    if await is_margin_trading(acc_name, TOKEN) \
+    if trades_count > 40 \
     else account_interaction_buttons(acc_name)
 
     await call.message.edit_text(text=f"Here it is: {callback_data.get('acc_name')}\n"

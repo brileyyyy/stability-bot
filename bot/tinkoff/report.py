@@ -26,6 +26,7 @@ async def get_portfolio_report(acc_name: str, TOKEN: str):
 				curr_price = to_float(position.current_price)
 				quantity = to_float(position.quantity)
 				exp_yield = to_float(position.expected_yield)
+				exp_yield = 0 if exp_yield == 0 else exp_yield
 				total = curr_price * quantity
 				
 				instrument: InstrumentResponse = await client.instruments.get_instrument_by(

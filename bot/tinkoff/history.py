@@ -61,8 +61,12 @@ async def get_operations_history(acc_name: str, TOKEN: str):
                 id=trade.figi
             )
             curr_symbol = currency_by_ticker(instrument.instrument.currency)
+            if trade.type == OperationType.OPERATION_TYPE_BUY:
+                trade_type = "B"
+            elif trade.type == OperationType.OPERATION_TYPE_SELL:
+                trade_type = "S"
             
-            ans[date] += f"{instrument.instrument.ticker} - {trade.quantity} шт - {round(price)} {curr_symbol}\n"
+            ans[date] += f"({trade_type}) {trade.name} - {trade.quantity} шт - {round(price)} {curr_symbol}\n"
 
         for item in ans:
             answer += f"<b>{item}</b>\n{ans[item]}\n"

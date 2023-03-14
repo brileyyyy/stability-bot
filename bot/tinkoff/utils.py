@@ -1,9 +1,14 @@
 from datetime import datetime, timedelta
 from typing import List
 
+from bot.tinkoff.api import get_accounts
+
 from tinkoff.invest import (
     AsyncClient, 
-    MoneyValue, 
+    MoneyValue,
+    GetOperationsByCursorRequest,
+    GetOperationsByCursorResponse,
+    OperationsResponse,
     OperationItem,
     OperationType,
     PortfolioResponse,
@@ -41,20 +46,78 @@ def get_from_period(period: str) -> datetime:
 	return fr
 
 
-def buy_sell_equal(trades: List[OperationItem], name: str):
-	buy = 0; sell = 0
+async def get_trades_by_period(acc_name: str, TOKEN: str, period: str):
+	trades: List[OperationItem] = []
+
+	async with AsyncClient(TOKEN) as client:
+		accounts = await get_accounts(TOKEN)
+		for acc in accounts:
+			if (acc.name == acc_name):
+				account_id = acc.id
+				break
+
+		fr = get_from_period(period)
+		def get_request(cursor=""):
+			return GetOperationsByCursorRequest(
+				account_id=account_id,
+				from_=fr,
+				cursor=cursor,
+				operation_types=[OperationType.OPERATION_TYPE_BUY, OperationType.OPERATION_TYPE_SELL],
+			)
+
+		operations: GetOperationsByCursorResponse = await client.operations.get_operations_by_cursor(get_request())
+		for item in operations.items:
+			if item.trades_info.trades:
+				trades.append(item)
+
+		while operations.has_next:
+			request = get_request(cursor=operations.next_cursor)
+			operations = await client.operations.get_operations_by_cursor(request)
+			for item in operations.items:
+				if item.trades_info.trades:
+					trades.append(item)
+
+	return trades
+
+
+async def get_fee_by_period(acc_name: str, TOKEN: str, period: str):
+	service_fee = 0; margin_fee = 0
+	
+	async with AsyncClient(TOKEN) as client:
+		accounts = await get_accounts(TOKEN)
+		for acc in accounts:
+			if (acc.name == acc_name):
+				account_id = acc.id
+				break
+
+		fr = get_from_period(period)
+		operations: OperationsResponse = await client.operations.get_operations(
+			account_id=account_id,
+			from_=fr,
+		)
+		for op in operations.operations:
+			if op.operation_type == OperationType.OPERATION_TYPE_SERVICE_FEE:
+				service_fee = to_float(op.payment)
+			elif op.operation_type == OperationType.OPERATION_TYPE_MARGIN_FEE:
+				margin_fee = to_float(op.payment)
+
+			if service_fee and margin_fee:
+				break
+
+	return [service_fee, margin_fee]
+
+
+def buy_sell_lots(trades: List[OperationItem], name: str):
 	buy_lots = 0; sell_lots = 0
 
 	for trade in trades:
 		if trade.name == name:
 			if trade.type == OperationType.OPERATION_TYPE_BUY:
-				buy += 1
 				buy_lots += trade.quantity
 			elif trade.type == OperationType.OPERATION_TYPE_SELL:
-				sell += 1
 				sell_lots += trade.quantity
 	
-	return [buy, sell, buy_lots, sell_lots]
+	return [buy_lots, sell_lots]
 
 
 async def in_portfolio(client: AsyncClient, account_id: str, figi: str) -> int:
@@ -69,15 +132,17 @@ async def in_portfolio(client: AsyncClient, account_id: str, figi: str) -> int:
 	return quantity
 
 
-def count_in_portfolio(trades: List[OperationItem], name: str, quantity: int, buy: int, sell: int, buy_lots: int, sell_lots: int) -> float:
+def count_in_portfolio(trades: List[OperationItem], name: str, quantity: int, buy_lots: int, sell_lots: int) -> float:
 	buys = []; sells = []
-	count_in_portfolio = 0
-	last_operation = None
+	count_in_portfolio = 0; count_after_portfolio = 0
+	i = 0
 
 	for trade in trades:
 		if trade.name == name:
+			i += 1
 			if trade.type == OperationType.OPERATION_TYPE_BUY:
 				quantity_b = trade.quantity
+				count_after_portfolio += 1
 
 				if sells:
 					for item in sells:
@@ -85,11 +150,8 @@ def count_in_portfolio(trades: List[OperationItem], name: str, quantity: int, bu
 
 						if item == quantity_b:
 							sells.pop(0)
-							buy -= 1
-							sell -= 1
 						elif item < quantity_b:
 							sells.pop(0)
-							sell -= 1
 							buys.append(quantity_b - item)
 						else:
 							item -= quantity_b
@@ -98,6 +160,7 @@ def count_in_portfolio(trades: List[OperationItem], name: str, quantity: int, bu
 					buys.append(quantity_b)
 			elif trade.type == OperationType.OPERATION_TYPE_SELL:
 				quantity_s = trade.quantity
+				count_after_portfolio += 1
 
 				if buys:
 					for item in buys:
@@ -105,11 +168,8 @@ def count_in_portfolio(trades: List[OperationItem], name: str, quantity: int, bu
 
 						if item == quantity_s:
 							buys.pop(0)
-							buy -= 1
-							sell -= 1
 						elif item < quantity_s:
 							buys.pop(0)
-							buy -= 1
 							sells.append(quantity_s - item)
 						else:
 							item -= quantity_s
@@ -120,15 +180,17 @@ def count_in_portfolio(trades: List[OperationItem], name: str, quantity: int, bu
 			if sum(buys) == quantity:
 				count_in_portfolio = len(buys)
 				buy_lots -= sum(buys)
-				last_operation = OperationType.OPERATION_TYPE_BUY
+				if i == len(buys):
+					count_after_portfolio = 0
 				break
 			elif -sum(sells) == quantity:
 				count_in_portfolio = len(sells)
 				sell_lots -= sum(sells)
-				last_operation = OperationType.OPERATION_TYPE_SELL
+				if i == len(sells):
+					count_after_portfolio = 0
 				break
 
-	return [count_in_portfolio, last_operation, buy, sell, buy_lots, sell_lots]
+	return [count_in_portfolio, count_after_portfolio, buy_lots, sell_lots]
 
 
 def lots_count_equal(trades: List[OperationItem], name: str):

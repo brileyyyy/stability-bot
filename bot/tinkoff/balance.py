@@ -39,9 +39,6 @@ def balance_info(response: PortfolioResponse):
 	for key in dict(result):
 		in_portfolio = total_by_type(response, key)
 	
-		# if result[key] < 0:
-		# 	sign = "-"
-
 		sign = ""
 		if result[key] > 0:
 			sign = "+"
@@ -87,6 +84,8 @@ async def get_balance(acc_name: str, TOKEN: str):
 
 		response: PortfolioResponse = await client.operations.get_portfolio(account_id=account_id)
 		currencies = to_float(response.total_amount_currencies)
+		currencies = 0 if currencies == 0 else currencies
+
 		
 		answer = (f"{balance_info(response)}"
 				f"<b>Currency</b>\n{currencies} ₽")

@@ -6,7 +6,7 @@ from bot.tinkoff.yieldd import get_operations_yield
 from bot.tinkoff.stability import get_operations_stability
 from bot.tinkoff.report import get_portfolio_report
 from bot.tinkoff.history import get_operations_history
-from bot.tinkoff.api import is_margin_trading
+from bot.tinkoff.utils import get_trades_by_period
 
 from bot.keyboards.inline.accounts import accounts_buttons
 from bot.keyboards.inline.yield_period import yield_period_buttons
@@ -19,18 +19,20 @@ from bot.keyboards.inline.callback_data.callback_data import (
 from bot.filters.check_token_filter import CheckTokenFilter
 from bot.misc.database.db import db
 
+from tinkoff.invest import GetAccountsResponse
+
 
 # =================================   ACCOUNTS   =================================
 
 async def accounts(message: types.Message):
     TOKEN = db.get_token(message.from_user.id)
     command = message.get_command()
-    response = await get_accounts(TOKEN)
+    response: GetAccountsResponse = await get_accounts(TOKEN)
     margin_accounts = []
     accounts = []
 
     for account in response:
-        if await is_margin_trading(account.name, TOKEN):
+        if len(await get_trades_by_period(account.name, TOKEN, "per month")) > 40:
             margin_accounts.append(account)
         else:
             accounts.append(account)
