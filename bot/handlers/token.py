@@ -23,11 +23,18 @@ async def set_option(message: types.Message):
 
 
 async def parse_token(message: types.Message):
+	TOKEN = db.get_token(message.from_user.id)
+
 	try:
 		with Client(message.text):
 			pass
+
 		db.set_token(message.from_user.id, message.text)
-		ans = "You have registered a TI token! 🔥\nNow you have access to all options of Stability."
+		if TOKEN == "notoken":
+			ans = "You have registered a TI token! 🔥\nNow you have access to all options of Stability."
+		else:
+			ans = "You have updated a TI token!"
+			
 	except RequestError:
 		ans = "Invalid token string."
 

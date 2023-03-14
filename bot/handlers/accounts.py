@@ -27,6 +27,8 @@ from bot.keyboards.inline.callback_data.callback_data import (
 from bot.filters.check_token_filter import CheckTokenFilter
 from bot.misc.database.db import db
 
+from tinkoff.invest import AioRequestError
+
 
 # =================================   ACCOUNTS   =================================
 
@@ -126,9 +128,13 @@ async def account_interaction_cancel_orders(call: types.CallbackQuery, callback_
 async def account_interaction_cancel_orders_confirm(call: types.CallbackQuery, callback_data: dict):
     TOKEN = db.get_token(call.from_user.id)
     acc_name = callback_data.get("acc_name")
-    await cancel_orders(acc_name, TOKEN)
+    try:
+        await cancel_orders(acc_name, TOKEN)
+        await call.answer("All orders have been cancelled.", show_alert=True)
+    except AioRequestError as err:
+        await call.answer(f"{err.metadata.message}. Maybe your token have read-only properties", 
+                          show_alert=True)
 
-    await call.answer("All orders have been cancelled.", show_alert=True)
 
 
 async def account_interaction_back_button(call: types.CallbackQuery):
