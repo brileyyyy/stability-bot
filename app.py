@@ -43,7 +43,7 @@ async def main():
 
 	config = get_config(".env")
 
-	bot = Bot(token=config.bot.token, parse_mode="HTML")# proxy="http://proxy.server:3128")
+	bot = Bot(token=config.bot.token, parse_mode="HTML")
 	storage = RedisStorage2() if config.bot.use_redis else MemoryStorage()
 	dp = Dispatcher(bot, storage=storage)
 

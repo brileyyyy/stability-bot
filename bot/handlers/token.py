@@ -14,12 +14,7 @@ async def get_option(message: types.Message):
 
 
 async def set_option(message: types.Message):
-	TOKEN = db.get_token(message.from_user.id)
-
-	if TOKEN == "notoken":
-		await message.answer("Send me a token string.")
-	else:
-		await message.answer("You are already register a token.")
+	await message.answer("Send me a token string.")
 
 
 async def parse_token(message: types.Message):
