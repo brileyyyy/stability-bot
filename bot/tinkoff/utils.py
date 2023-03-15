@@ -113,9 +113,9 @@ def buy_sell_lots(trades: List[OperationItem], name: str):
 	for trade in trades:
 		if trade.name == name:
 			if trade.type == OperationType.OPERATION_TYPE_BUY:
-				buy_lots += trade.quantity
+				buy_lots += trade.quantity_done
 			elif trade.type == OperationType.OPERATION_TYPE_SELL:
-				sell_lots += trade.quantity
+				sell_lots += trade.quantity_done
 	
 	return [buy_lots, sell_lots]
 
@@ -141,7 +141,7 @@ def count_in_portfolio(trades: List[OperationItem], name: str, quantity: int, bu
 		if trade.name == name:
 			i += 1
 			if trade.type == OperationType.OPERATION_TYPE_BUY:
-				quantity_b = trade.quantity
+				quantity_b = trade.quantity_done
 				count_after_portfolio += 1
 
 				if sells:
@@ -159,7 +159,7 @@ def count_in_portfolio(trades: List[OperationItem], name: str, quantity: int, bu
 				else:
 					buys.append(quantity_b)
 			elif trade.type == OperationType.OPERATION_TYPE_SELL:
-				quantity_s = trade.quantity
+				quantity_s = trade.quantity_done
 				count_after_portfolio += 1
 
 				if buys:
@@ -191,25 +191,6 @@ def count_in_portfolio(trades: List[OperationItem], name: str, quantity: int, bu
 				break
 
 	return [count_in_portfolio, count_after_portfolio, buy_lots, sell_lots]
-
-
-def lots_count_equal(trades: List[OperationItem], name: str):
-	b = 0; s = 0
-	c = 0; max = 0
-
-	for trade in trades:
-		if trade.name == name:
-			if trade.type == OperationType.OPERATION_TYPE_BUY:
-				b += trade.quantity
-				c += 1
-			elif trade.type == OperationType.OPERATION_TYPE_SELL:
-				s += trade.quantity
-				c += 1
-
-			if b == s:
-				max = c
-
-	return max
 
 
 def currency_by_ticker(curr: str) -> str:

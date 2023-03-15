@@ -36,8 +36,8 @@ def get_yield(trades: List[OperationItem], name: str, base_comm: float, m: int =
 				if trade.type == OperationType.OPERATION_TYPE_BUY:
 					if count_after_portfolio != 0:
 						count_after_portfolio -= 1
-					b += trade.quantity
-					min_payment = min(abc(to_float(trade.payment)), to_float(trade.price) * trade.quantity)
+					b += trade.quantity_done
+					min_payment = min(abc(to_float(trade.payment)), to_float(trade.price) * trade.quantity_done)
 					trade_comm = round(base_comm * min_payment / 100)
 
 					if m:
@@ -51,8 +51,8 @@ def get_yield(trades: List[OperationItem], name: str, base_comm: float, m: int =
 				elif trade.type == OperationType.OPERATION_TYPE_SELL:
 					if count_after_portfolio != 0:
 						count_after_portfolio -= 1
-					s += trade.quantity
-					min_payment = min(to_float(trade.payment), to_float(trade.price) * trade.quantity)
+					s += trade.quantity_done
+					min_payment = min(to_float(trade.payment), to_float(trade.price) * trade.quantity_done)
 					trade_comm = round(base_comm * min_payment / 100)
 					
 					if m:
@@ -68,7 +68,7 @@ def get_yield(trades: List[OperationItem], name: str, base_comm: float, m: int =
 	else:
 		for trade in trades:
 			if trade.name == name:
-				min_pay = min(abc(to_float(trade.payment)), to_float(trade.price) * trade.quantity)
+				min_pay = min(abc(to_float(trade.payment)), to_float(trade.price) * trade.quantity_done)
 				if trade.type == OperationType.OPERATION_TYPE_BUY:
 					res = -min_pay
 				elif trade.type == OperationType.OPERATION_TYPE_SELL:
@@ -114,7 +114,10 @@ async def get_operations_yield(acc_name: str, TOKEN: str, period: str):
 
 			buy_lots, sell_lots = buy_sell_lots(trades, name)
 			lots_count = await in_portfolio(client, account_id, figi)
-			count, count_after, buy_lots, sell_lots = count_in_portfolio(trades, name, lots_count, buy_lots, sell_lots)
+			
+			count = 0; count_after = 0
+			if lots_count:
+				count, count_after, buy_lots, sell_lots = count_in_portfolio(trades, name, lots_count, buy_lots, sell_lots)
 
 			if lots_count and not count:
 				answer += f"<b>{name}</b>\nDelays in terminal calculations.\n\n"

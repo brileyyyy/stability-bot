@@ -34,9 +34,9 @@ async def get_stability(trades: List[OperationItem], name: str, base_comm: float
 			if trade.type == OperationType.OPERATION_TYPE_BUY:
 				if count_after_portfolio != 0:
 					count_after_portfolio -= 1
-				quantity_b = trade.quantity
-				min_price = min(abc(to_float(trade.payment) / trade.quantity), to_float(trade.price))
-				trade_comm = base_comm * min_price * trade.quantity / 100
+				quantity_b = trade.quantity_done
+				min_price = min(abc(to_float(trade.payment) / trade.quantity_done), to_float(trade.price))
+				trade_comm = base_comm * min_price * trade.quantity_done / 100
 				next = 0
 
 				if sells:
@@ -44,7 +44,7 @@ async def get_stability(trades: List[OperationItem], name: str, base_comm: float
 						if quantity_b == 0: break
 
 						if quantity_b >= item[0] or not next:
-							if (item[1] - min_price) * trade.quantity > (abc(item[2] + trade_comm)):
+							if (item[1] - min_price) * trade.quantity_done > (abc(item[2] + trade_comm)):
 								prof += 1
 							else:
 								loss += 1
@@ -69,9 +69,9 @@ async def get_stability(trades: List[OperationItem], name: str, base_comm: float
 			elif trade.type == OperationType.OPERATION_TYPE_SELL:
 				if count_after_portfolio != 0:
 					count_after_portfolio -= 1
-				quantity_s = trade.quantity
-				min_price = min(to_float(trade.payment) / trade.quantity, to_float(trade.price))
-				trade_comm = base_comm * min_price * trade.quantity / 100
+				quantity_s = trade.quantity_done
+				min_price = min(to_float(trade.payment) / trade.quantity_done, to_float(trade.price))
+				trade_comm = base_comm * min_price * trade.quantity_done / 100
 				next = 0
 
 				if buys:
@@ -79,7 +79,7 @@ async def get_stability(trades: List[OperationItem], name: str, base_comm: float
 						if quantity_s == 0: break
 
 						if quantity_s >= item[0] or not next:
-							if (min_price - item[1]) * trade.quantity > (abc(item[2] + trade_comm)):
+							if (min_price - item[1]) * trade.quantity_done > (abc(item[2] + trade_comm)):
 								prof += 1
 							else:
 								loss += 1
@@ -156,7 +156,10 @@ async def get_operations_stability(acc_name: str, TOKEN: str, period: str):
 
 			buy_lots, sell_lots = buy_sell_lots(trades, name)
 			lots_count = await in_portfolio(client, account_id, figi)
-			count, count_after, buy_lots, sell_lots = count_in_portfolio(trades, name, lots_count, buy_lots, sell_lots)
+
+			count = 0; count_after = 0
+			if lots_count:
+				count, count_after, buy_lots, sell_lots = count_in_portfolio(trades, name, lots_count, buy_lots, sell_lots)
 
 			if lots_count and not count:
 				answer += f"<b>{name}</b>\nIncorrect terminal calculations.\n\n"
